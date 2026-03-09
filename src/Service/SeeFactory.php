@@ -47,7 +47,8 @@ class SeeFactory
 
     public function build(string $class, ?string $ruc): See
     {
-        if (!empty($ruc) && $this->configureSeeWithRuc($ruc, $class)) {
+        $ruc = $ruc !== null ? trim((string) $ruc) : '';
+        if ($ruc !== '' && $this->configureSeeWithRuc($ruc, $class)) {
             return $this->see;
         }
 
@@ -57,12 +58,20 @@ class SeeFactory
 
     private function configureSeeWithRuc(string $ruc, string $class): bool
     {
+        $ruc = trim((string) $ruc);
+        if ($ruc === '') {
+            return false;
+        }
+
         $jsonCompanies = $this->fileProvider->get('companies');
         if (empty($jsonCompanies)) {
             return false;
         }
 
         $companies = json_decode($jsonCompanies, true);
+        if (!is_array($companies)) {
+            return false;
+        }
 
         if (!array_key_exists($ruc, $companies)) {
             return false;

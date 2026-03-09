@@ -47,7 +47,7 @@ class DespatchController extends AbstractController
     {
         /** @var \Greenter\Model\Despatch\Despatch $document */
         $document = $this->document->getDocument(Despatch::class);
-        $see = $factory->build($document->getCompany()->getRuc());
+        $see = $factory->build(trim((string) $document->getCompany()->getRuc()));
         $result = $see->send($document);
 
         $xml = $see->getLastXml();

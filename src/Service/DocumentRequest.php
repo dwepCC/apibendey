@@ -12,6 +12,7 @@ use Greenter\Model\DocumentInterface;
 use Greenter\Model\Response\BaseResult;
 use Greenter\Model\Response\BillResult;
 use Greenter\Model\Response\SummaryResult;
+use Greenter\Model\Sale\Invoice;
 use Greenter\Report\ReportInterface;
 use Greenter\Report\XmlUtils;
 use Greenter\See;
@@ -42,8 +43,8 @@ class DocumentRequest implements DocumentRequestInterface
     public function __construct(
         RequestStack $requestStack,
         RequestParserInterface $parser,
-        ContainerInterface $container)
-    {
+        ContainerInterface $container
+    ) {
         $this->requestStack = $requestStack;
         $this->parser = $parser;
         $this->container = $container;
@@ -57,9 +58,13 @@ class DocumentRequest implements DocumentRequestInterface
     public function send(string $class): Response
     {
         $document = $this->getDocument($class);
+        $error = $this->validateInvoiceRequired($document);
+        if ($error !== null) {
+            return $error;
+        }
         $company = $document->getCompany();
 
-        $see = $this->getSee($class, $company->getRuc());
+        $see = $this->getSee($class, trim((string) $company->getRuc()));
         $result = $see->send($document);
 
         $this->toBase64Zip($result);
@@ -83,8 +88,12 @@ class DocumentRequest implements DocumentRequestInterface
     public function xml(string $class): Response
     {
         $document = $this->getDocument($class);
+        $error = $this->validateInvoiceRequired($document);
+        if ($error !== null) {
+            return $error;
+        }
         $company = $document->getCompany();
-        $see = $this->getSee($class, $company->getRuc());
+        $see = $this->getSee($class, trim((string) $company->getRuc()));
 
         $xml  = $see->getXmlSigned($document);
 
@@ -100,12 +109,17 @@ class DocumentRequest implements DocumentRequestInterface
     public function pdf(string $class): Response
     {
         $document = $this->getDocument($class);
+        $error = $this->validateInvoiceRequired($document);
+        if ($error !== null) {
+            return $error;
+        }
         $params = $this->getKeyContent("parameters");
 
         $company = $document->getCompany();
         $jsonCompanies = $this->getParameter('companies');
-        $ruc = $company->getRuc();
-        if (empty($companies) && ($companies = json_decode($jsonCompanies, true)) && array_key_exists($ruc, $companies)) {
+        $ruc = trim((string) $company->getRuc());
+        $companies = !empty($jsonCompanies) ? json_decode($jsonCompanies, true) : null;
+        if (is_array($companies) && array_key_exists($ruc, $companies)) {
             $logo = $this->getFile($companies[$ruc]['logo']);
         } else {
             $logo = $this->getParameter('logo');
@@ -141,7 +155,7 @@ class DocumentRequest implements DocumentRequestInterface
     {
         $factory = $this->container->get(SeeFactory::class);
 
-        return $factory->build($class, $ruc);
+        return $factory->build($class, trim((string) $ruc));
     }
 
     /**
@@ -155,6 +169,31 @@ class DocumentRequest implements DocumentRequestInterface
         $request = $this->requestStack->getCurrentRequest();
 
         return $this->parser->getObject($request, $class);
+    }
+
+    /**
+     * Valida que Factura/Boleta (Invoice) traiga tipoOperacion y tipoDoc. Si falta, devuelve Response 400.
+     */
+    private function validateInvoiceRequired(DocumentInterface $document): ?Response
+    {
+        if (!$document instanceof Invoice) {
+            return null;
+        }
+        $missing = [];
+        if (!method_exists($document, 'getTipoOperacion') || $document->getTipoOperacion() === null || trim((string) $document->getTipoOperacion()) === '') {
+            $missing[] = 'tipoOperacion';
+        }
+        if (!method_exists($document, 'getTipoDoc') || $document->getTipoDoc() === null || trim((string) $document->getTipoDoc()) === '') {
+            $missing[] = 'tipoDoc';
+        }
+        if (empty($missing)) {
+            return null;
+        }
+        return new JsonResponse([
+            'error' => 'Faltan datos obligatorios para el comprobante.',
+            'campos_requeridos' => $missing,
+            'mensaje' => 'Para factura/boleta debes enviar en el body: tipoOperacion (valor para listID en el XML: "0101" factura, "0102" boleta) y tipoDoc ("01" factura, "03" boleta). Ver docs/PAYLOAD-FACTURA-BOLETA.md.',
+        ], Response::HTTP_BAD_REQUEST);
     }
 
     /**

@@ -40,20 +40,24 @@ class SeeApiFactory
 
     private function configureSeeWithRuc(string $ruc): bool
     {
+        $ruc = trim((string) $ruc);
+        if ($ruc === '') {
+            return false;
+        }
+
         $jsonCompanies = $this->fileProvider->get('companies');
         if (empty($jsonCompanies)) {
             return false;
         }
 
         $companies = json_decode($jsonCompanies, true);
-
-        if (!array_key_exists($ruc, $companies)) {
+        if (!is_array($companies) || !array_key_exists($ruc, $companies)) {
             return false;
         }
 
         $config = $companies[$ruc];
-        list ($ruc, $user) = $this->getRucAndUser($config['SOL_USER']);
-        $this->see->setClaveSOL($ruc, $user, $config['SOL_PASS']);
+        list ($rucPart, $user) = $this->getRucAndUser($config['SOL_USER']);
+        $this->see->setClaveSOL($rucPart, $user, $config['SOL_PASS']);
         $this->see->setCertificate($this->fileReader->getContents($config['certificate']));
         $this->see->setApiCredentials($config['CLIENT_ID'], $config['CLIENT_SECRET']);
 

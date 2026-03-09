@@ -75,6 +75,7 @@ services:
             - '@App\Service\HtmlReportDecorator'
             - '%env(WKHTMLTOPDF_PATH)%'
             - ['no-outline', 'print-media-type']
+            - '%kernel.project_dir%'
 
     App\Service\AppDocumentValidator:
         autowire: true
@@ -112,6 +113,11 @@ services:
     App\Service\FileDataReader:
         public: true
         arguments: ['%data_path%']
+
+    App\Service\EmpresasService:
+        arguments:
+            - '@App\Service\ConfigProviderInterface'
+            - '%data_path%'
 
     App\Service\ConfigProviderInterface:
         alias: App\Service\FileConfigProvider

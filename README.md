@@ -19,6 +19,21 @@ LIVE (Pruebas)
 - WkhtmltoPdf executable (PDF report)
 - Pem Certificate - [convert pfx to pem](https://github.com/thegreenter/xmldsig/blob/master/CONVERT.md)
 
+### Wkhtmltopdf en Windows
+Para generar PDF en Windows puede usar una de estas opciones:
+
+1. **Instalar wkhtmltopdf** desde [wkhtmltopdf.org](https://wkhtmltopdf.org/downloads.html). Tras la instalación, en `.env` defina la ruta completa, por ejemplo:
+   ```
+   WKHTMLTOPDF_PATH=C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe
+   ```
+
+2. **Binario en el proyecto** (solo desarrollo): ejecute `composer install` con la variable `LYCET_BETA=1` para descargar el ejecutable en `vendor/bin/wkhtmltopdf.exe`. Si en `.env` tiene `WKHTMLTOPDF_PATH=wkhtmltopdf`, la aplicación usará automáticamente ese binario en Windows.
+   ```
+   set LYCET_BETA=1
+   composer install -o
+   ```
+   También puede poner la ruta explícita: `WKHTMLTOPDF_PATH=D:\lycet\vendor\bin\wkhtmltopdf.exe`
+
 ## Pasos
 
 ### Instalar Lycet
@@ -82,6 +97,16 @@ Ejemplo de contenido del archivo `empresas.json`, tambien puede cambiar la URL d
 }
 ```
 > Para pruebas de Guia de remision, utilizar la siguiente configuración [issue#605](https://github.com/giansalex/lycet/issues/605)
+
+### API Empresas (multitenant)
+Desde el frontend puedes **listar** y **crear/actualizar** empresas para trabajar con varias empresas.
+
+- **GET** `/api/v1/empresas` — Lista todas las empresas en `data/empresas.json`.
+- **POST** `/api/v1/empresas` — Crea o actualiza una o varias empresas. El body puede ser:
+  - `{ "empresas": { "RUC": { "SOL_USER", "SOL_PASS", "certificate_base64?", "logo_base64?", "FE_URL?", ... } } }`
+  - o directamente `{ "RUC": { ... }, "RUC2": { ... } }`.
+
+Si envías `certificate_base64` o `logo_base64`, se guardan en `data/{RUC}-cert.pem` y `data/{RUC}-logo.png`. En las demás peticiones (factura, nota, etc.) envía el parámetro `?ruc=RUC` para usar esa empresa.
 
 ### Ejecutar    
 Usando Php Built-in Web Server.

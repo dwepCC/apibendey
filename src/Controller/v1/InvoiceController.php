@@ -153,19 +153,19 @@ class InvoiceController extends AbstractController
             return $this->config->get($key);
         }
 
+        $ruc = trim((string) $ruc);
         $jsonCompanies = $this->fileProvider->get('companies');
         if (empty($jsonCompanies)) {
-            return false;
+            return $this->config->get($key);
         }
 
         $companies = json_decode($jsonCompanies, true);
-
-        if (!array_key_exists($ruc, $companies)) {
-            return false;
+        if (!is_array($companies) || !array_key_exists($ruc, $companies)) {
+            return $this->config->get($key);
         }
 
         $config = $companies[$ruc];
 
-        return $config[$key];
+        return $config[$key] ?? $this->config->get($key);
     }
 }
