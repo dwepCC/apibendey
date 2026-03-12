@@ -14,6 +14,24 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class InvoiceControllerTest extends WebTestCase
 {
+    private const TEST_RUC = '20480072872';
+    private const TEST_CERT_FILE = self::TEST_RUC . '-cert.pem';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $projectDir = dirname(__DIR__, 3);
+        $dataPath = $projectDir . DIRECTORY_SEPARATOR . 'data';
+        if (!is_dir($dataPath)) {
+            mkdir($dataPath, 0755, true);
+        }
+        $certDest = $dataPath . DIRECTORY_SEPARATOR . self::TEST_CERT_FILE;
+        $certSrc = __DIR__ . '/../../Resources/cert.pem';
+        if (file_exists($certSrc)) {
+            copy($certSrc, $certDest);
+        }
+    }
+
     public function testSendAccessDenied()
     {
         $this->expectException(AccessDeniedHttpException::class);
@@ -85,18 +103,29 @@ class InvoiceControllerTest extends WebTestCase
         $stub = $this->getMockBuilder(ConfigProviderInterface::class)
                     ->getMock();
 
+        $companies = [
+            self::TEST_RUC => [
+                'SOL_USER' => self::TEST_RUC . 'MODDATOS',
+                'SOL_PASS' => 'datos',
+                'certificate' => self::TEST_CERT_FILE,
+                'logo' => null,
+                'ambiente' => 'pruebas',
+            ],
+        ];
+
         $stub->method('get')
-            ->willReturnCallback(function ($key) {
-               switch ($key) {
-                   case 'certificate':
-                       $path = __DIR__.'/../../Resources/cert.pem';
-                       return file_get_contents($path);
-                   default:
-                       return '';
-               }
+            ->willReturnCallback(function ($key) use ($companies) {
+                if ($key === 'companies') {
+                    return json_encode($companies);
+                }
+                if ($key === 'certificate') {
+                    $path = __DIR__ . '/../../Resources/cert.pem';
+                    return file_get_contents($path);
+                }
+                return '';
             });
 
-        /**@var $stub ConfigProviderInterface*/
+        /** @var ConfigProviderInterface $stub */
         return $stub;
     }
 

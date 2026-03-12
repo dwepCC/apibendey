@@ -75,7 +75,7 @@ Además de los de factura/boleta (company, client, details, totales, leyendas, e
 | **relDocs** | array | Al menos un documento afectado: `{ "tipoDoc": "01" \| "03", "nroDoc": "SERIE-NUMERO" }`. |
 | **codMotivo** | string | Código del motivo. |
 | **desMotivo** | string | Descripción del motivo. |
-| **details** | array | Ítems (al menos uno). Misma estructura que en factura/boleta. |
+| **details** | array | Ítems (al menos uno). Misma estructura que en factura/boleta. Cada ítem debe llevar **tipAfeIgv** según afectación (10 gravado, 20 exonerado, 30 inafecto). Si hay exonerados/inafectos, ver sección *Tributos e IGV* más abajo. |
 | **legends** | array | Leyendas (código 1000 = monto en letras). |
 | **mtoOperGravadas** | number | Total operaciones gravadas. |
 | **mtoIGV** | number | IGV. |
@@ -252,6 +252,36 @@ Ejemplo que referencia una **boleta** `B001-30` como documento afectado:
 
 ---
 
+## Tributos e IGV: productos gravados, exonerados e inafectos (rechazo SUNAT 2638 / 3105)
+
+SUNAT exige que **por cada tipo de tributo/afectación usado en las líneas del comprobante exista un total de ese tributo en el resumen del XML** (bloques `cac:TaxTotal` / `cac:TaxSubtotal`). Si en alguna línea usas un tipo de afectación distinto del gravado (IGV 17%), debes declarar el monto total de ese tributo a nivel de resumen. Esto aplica igual para **notas de crédito y notas de débito**.
+
+### Qué significa el error de SUNAT
+
+- **"El XML debe contener al menos un tributo por línea de afectación por IGV"** o **código 2638 / 3105**: indica que en el XML hay líneas con `tipAfeIgv` exonerado (`"20"`), inafecto (`"30"`), etc., pero **falta el nodo (tag) con el monto total de ese tributo** en la sección de resumen de impuestos. SUNAT espera, además del `cac:TaxTotal` para IGV gravado (código 17), **otro bloque `cac:TaxTotal`** (o el correspondiente `cac:TaxSubtotal`) para el tributo exonerado/inafecto.
+
+### Tipos de afectación del IGV (Catálogo N° 07)
+
+| Código | Descripción |
+|--------|-------------|
+| **10** | Gravado - Operación Onerosa |
+| **20** | Exonerado - Operación Onerosa |
+| **30** | Inafecto - Operación Onerosa |
+| **40** | Exportación |
+| Otros | Según catálogo SUNAT vigente |
+
+### Qué debe enviar el frontend cuando hay exonerados o inafectos
+
+1. **Por línea (`details[]`):** cada ítem debe llevar el `tipAfeIgv` correcto (`"10"`, `"20"`, `"30"`, etc.) y los montos coherentes con esa afectación (gravado con base e IGV; exonerado/inafecto según guía UBL 2.1).
+
+2. **Totales a nivel de comprobante:** además de `mtoOperGravadas` y `mtoIGV`, cuando existan operaciones exoneradas o inafectas deben declararse los **totales por tipo de operación** que la librería use para generar los `cac:TaxTotal` (por ejemplo **`mtoOperExoneradas`**, **`mtoOperInafectas`** si el backend los acepta). Los totales globales deben cuadrar.
+
+3. **Verificación del XML:** si SUNAT rechaza con 2638/3105, revisar el XML generado y comprobar que existan **tantos bloques `cac:TaxTotal` como tipos de tributo** usados en las líneas (p. ej. uno para IGV gravado y otro para exonerado/inafecto).
+
+En resumen: **si alguna línea tiene `tipAfeIgv` exonerado o inafecto, el XML debe incluir el tag del total de ese tributo en el resumen; de lo contrario SUNAT rechaza la nota.** Ver también [PAYLOAD-FACTURA-BOLETA.md](PAYLOAD-FACTURA-BOLETA.md) para el detalle en factura/boleta.
+
+---
+
 ## Respuesta exacta de cada endpoint
 
 ### 1. `POST /api/v1/note/send` — Enviar a SUNAT
@@ -352,3 +382,4 @@ En todos los 4xx el cuerpo es JSON; el frontend debe interpretarlo como error de
 - **relDocs:** al menos un elemento con el comprobante afectado: `{ "tipoDoc": "01" | "03", "nroDoc": "SERIE-NUMERO" }`.
 - **codMotivo** y **desMotivo** son obligatorios; usar códigos y descripciones según catálogo SUNAT.
 - La estructura detallada de **sunatResponse** (aceptado, rechazado, sin conexión) es la misma que para factura/boleta; ver [RESPUESTA-SUNAT-BACKEND.md](RESPUESTA-SUNAT-BACKEND.md).
+- Para **leyenda del monto en letras** (legends con code `"1000"`), **cliente no documentado** (`client.tipoDoc: "0"` para que en el XML salga `schemeID="0"`) y **porcentaje IGV por línea** (`details[].porcentajeIgv` en exonerados/inafectos), rigen las mismas reglas que en factura y boleta; ver la sección *Datos a enviar para observaciones frecuentes del XML* en [PAYLOAD-FACTURA-BOLETA.md](PAYLOAD-FACTURA-BOLETA.md).

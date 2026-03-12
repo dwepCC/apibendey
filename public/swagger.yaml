@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  description: API REST basado en Greenter - Facturación Electrónica.
+  description: API REST para facturación electrónica SUNAT (bendey-api).
   version: "1.3"
-  title: Lycet API
+  title: bendey-api
   contact:
     name: Giancarlos Salas
     email: giansalex@gmail.com

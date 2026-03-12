@@ -1,71 +1,209 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Lycet API REST</title>
-    <meta name="description" content="Lycet API REST based on Greenter">
-    <link href="https://fonts.googleapis.com/css?family=Raleway:100,600" rel="stylesheet" type="text/css">
+    <title>bendey-api</title>
+    <meta name="description" content="bendey-api — API REST para facturación electrónica SUNAT">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        html, body {
-            background-color: #fff;
-            color: #636b6f;
-            font-family: 'Raleway', sans-serif;
-            font-weight: 100;
-            height: 100vh;
+        :root {
+            --bg: #0c0f17;
+            --bg-card: #131720;
+            --accent: #6366f1;
+            --accent-soft: rgba(99, 102, 241, 0.15);
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: #1e293b;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        html {
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
             margin: 0;
+            min-height: 100vh;
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
         }
 
-        .full-height {
-            height: 100vh;
-        }
-
-        .flex-center {
-            align-items: center;
+        .page {
+            min-height: 100vh;
             display: flex;
+            flex-direction: column;
+            align-items: center;
             justify-content: center;
-        }
-
-        .position-ref {
+            padding: 2rem;
             position: relative;
         }
 
+        .bg-pattern {
+            position: fixed;
+            inset: 0;
+            background-image:
+                radial-gradient(ellipse 80% 50% at 50% -20%, var(--accent-soft), transparent),
+                linear-gradient(180deg, var(--bg) 0%, #0f1322 100%);
+            pointer-events: none;
+        }
+
+        .grid-overlay {
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(var(--border) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 64px 64px;
+            opacity: 0.25;
+            pointer-events: none;
+        }
+
         .content {
+            position: relative;
+            z-index: 1;
             text-align: center;
+            max-width: 520px;
         }
 
-        .title {
-            font-size: 84px;
+        .logo {
+            font-size: clamp(2.5rem, 8vw, 3.5rem);
+            font-weight: 700;
+            letter-spacing: -0.04em;
+            margin: 0 0 0.5rem;
+            background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .links > a {
-            color: #636b6f;
-            padding: 0 25px;
-            font-size: 12px;
+        .logo span {
+            color: var(--accent);
+            -webkit-text-fill-color: var(--accent);
+        }
+
+        .tagline {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            margin: 0 0 2.5rem;
+            line-height: 1.5;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.75rem 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 0.75rem;
             font-weight: 600;
-            letter-spacing: .1rem;
-            text-decoration: none;
             text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin: 0 0 0.5rem;
         }
 
-        .m-b-md {
-            margin-bottom: 30px;
+        .card-desc {
+            font-size: 0.95rem;
+            color: var(--text);
+            margin: 0 0 1.25rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            background: var(--accent);
+            border: none;
+            border-radius: 10px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.15s;
+        }
+
+        .btn:hover {
+            background: #5558e3;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn svg {
+            width: 1.1em;
+            height: 1.1em;
+        }
+
+        .links {
+            margin-top: 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .links a {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .links a:hover {
+            color: var(--accent);
+        }
+
+        .version {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2rem;
+            opacity: 0.8;
         }
     </style>
 </head>
 <body>
-<div class="flex-center position-ref full-height">
+    <div class="bg-pattern"></div>
+    <div class="grid-overlay"></div>
 
-    <div class="content">
-        <div class="title m-b-md">
-            Lycet
+    <main class="page">
+        <div class="content">
+            <h1 class="logo">bendey<span>-api</span></h1>
+            <p class="tagline">API REST para facturación electrónica SUNAT. Comprobantes, guías y más.</p>
+
+            <div class="card">
+                <p class="card-title">Documentación</p>
+                <p class="card-desc">Explora y prueba los endpoints con la referencia interactiva de la API.</p>
+                <a href="http://petstore.swagger.io/?url=__SWAGGER_URL__" class="btn" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+                    </svg>
+                    Abrir API Reference
+                </a>
+            </div>
+
+            <div class="links">
+                <a href="/api/v1/empresas">GET /api/v1/empresas</a>
+            </div>
+
+            <p class="version">bendey-api</p>
         </div>
-        <div class="links">
-            <a href="http://petstore.swagger.io/?url=lycet.api">API Reference</a>
-            <a href="https://github.com/giansalex/lycet">GitHub</a>
-        </div>
-    </div>
-</div>
+    </main>
 </body>
 </html>

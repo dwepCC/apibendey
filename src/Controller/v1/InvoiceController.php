@@ -8,6 +8,7 @@
 
 namespace App\Controller\v1;
 
+use App\Exception\EmpresaNoRegistradaException;
 use App\Service\ConfigProviderInterface;
 use App\Service\DocumentRequestInterface;
 use Greenter\Model\Sale\Invoice;
@@ -113,8 +114,16 @@ class InvoiceController extends AbstractController
         if (empty($numero)) {
             return new JsonResponse(['message' => 'Numero Requerido'], 400);
         }
-        $see = $this->getCdrStatusService($request->query->get('ruc'));
-        $username = $this->getConfig('SOL_USER', $request->query->get('ruc'));
+        $rucParam = $request->query->get('ruc');
+        if (empty($rucParam)) {
+            return new JsonResponse(['message' => 'RUC requerido (modo multiempresa).'], 400);
+        }
+        try {
+            $see = $this->getCdrStatusService($rucParam);
+            $username = $this->getConfig('SOL_USER', $rucParam);
+        } catch (EmpresaNoRegistradaException $e) {
+            return new JsonResponse(['message' => $e->getMessage(), 'ruc' => $e->getRuc()], 400);
+        }
         $ruc = substr($username, 0, 11);
         $result = $see->getStatusCdr($ruc, $tipo, $serie, $numero);
 
@@ -138,7 +147,7 @@ class InvoiceController extends AbstractController
         if (!empty($ruc)) {
             $ws->setCredentials($this->getConfig('SOL_USER', $ruc), $this->getConfig('SOL_PASS', $ruc));
         } else {
-            $ws->setCredentials($this->getConfig('SOL_USER'), $this->getConfig('SOL_PASS'));
+            $ws->setCredentials($this->config->get('SOL_USER'), $this->config->get('SOL_PASS'));
         }
 
         $service = new ConsultCdrService();
@@ -147,6 +156,15 @@ class InvoiceController extends AbstractController
         return $service;
     }
 
+    /**
+     * Obtiene un valor de configuración. En modo multiempresa, si se pasa RUC solo se usa la BD;
+     * no hay fallback a .env cuando el RUC no está registrado (lanza EmpresaNoRegistradaException).
+     *
+     * @param string $key SOL_USER, SOL_PASS, etc.
+     * @param string|null $ruc Si se indica, se busca la empresa en BD
+     * @return string
+     * @throws EmpresaNoRegistradaException Si se pasó RUC y la empresa no está en la BD
+     */
     private function getConfig($key, $ruc = null)
     {
         if (empty($ruc)) {
@@ -156,16 +174,20 @@ class InvoiceController extends AbstractController
         $ruc = trim((string) $ruc);
         $jsonCompanies = $this->fileProvider->get('companies');
         if (empty($jsonCompanies)) {
-            return $this->config->get($key);
+            throw new EmpresaNoRegistradaException($ruc, 'No hay empresas registradas en la base de datos.');
         }
 
         $companies = json_decode($jsonCompanies, true);
         if (!is_array($companies) || !array_key_exists($ruc, $companies)) {
-            return $this->config->get($key);
+            throw new EmpresaNoRegistradaException($ruc);
         }
 
         $config = $companies[$ruc];
+        $value = $config[$key] ?? null;
+        if ($value === '' || $value === null) {
+            throw new EmpresaNoRegistradaException($ruc, 'Empresa sin configuración completa para ' . $key . '.');
+        }
 
-        return $config[$key] ?? $this->config->get($key);
+        return (string) $value;
     }
 }

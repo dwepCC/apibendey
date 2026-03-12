@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Exception\EmpresaNoRegistradaException;
 use Greenter\Api;
 
 class SeeApiFactory
@@ -28,13 +29,24 @@ class SeeApiFactory
         $this->see = $see;
     }
 
+    /**
+     * Construye Api con credenciales de la empresa en BD (multiempresa).
+     * No usa .env como respaldo: si el RUC no está registrado, lanza EmpresaNoRegistradaException.
+     *
+     * @param string|null $ruc RUC de la empresa (obligatorio en modo multiempresa)
+     * @return Api
+     * @throws EmpresaNoRegistradaException Si el RUC está vacío o no existe en la BD
+     */
     public function build(?string $ruc): Api
     {
-        if (!empty($ruc) && $this->configureSeeWithRuc($ruc)) {
-            return $this->see;
+        $ruc = $ruc !== null ? trim((string) $ruc) : '';
+        if ($ruc === '') {
+            throw new EmpresaNoRegistradaException('', 'RUC requerido. La aplicación opera en modo multiempresa con datos en base de datos.');
+        }
+        if (!$this->configureSeeWithRuc($ruc)) {
+            throw new EmpresaNoRegistradaException($ruc);
         }
 
-        $this->configureSeeWithEnv();
         return $this->see;
     }
 
@@ -64,6 +76,9 @@ class SeeApiFactory
         return true;
     }
 
+    /**
+     * @deprecated Solo para compatibilidad; en multiempresa no se usa fallback a .env
+     */
     private function configureSeeWithEnv()
     {
         list ($ruc, $user) = $this->getRucAndUser($this->config->get('SOL_USER'));

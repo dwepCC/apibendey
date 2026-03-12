@@ -66,8 +66,21 @@ a continuación.
 /data
 ├── cert.pem
 ├── logo.png
-├── empresas.json (opcional para multiples empresas)
+├── empresas.json (opcional: puede importarse a la BD con app:empresas:import-from-json)
 ```
+
+### Base de datos (empresas)
+Los datos de **empresas** se persisten en una **base de datos** (tabla `empresa`). Así se evita depender del archivo `empresas.json` y se puede gestionar todo desde el frontend.
+
+- **Requisito:** extensión PHP **pdo_sqlite** (o configurar MySQL en `.env` con `DATABASE_URL`).
+- En `.env` puede usar:
+  - **SQLite:** `DATABASE_URL="sqlite:///%kernel.project_dir%/var/data.db"`
+  - **MySQL:** `DATABASE_URL="mysql://user:password@127.0.0.1:3306/lycet?serverVersion=8.0"`
+- Crear la tabla: `php bin/console doctrine:migrations:migrate --no-interaction`
+- Si ya tenía datos en `data/empresas.json`, impórtelos a la BD:  
+  `php bin/console app:empresas:import-from-json`
+
+Cada empresa tiene un campo **`ambiente`**: `pruebas` (por defecto) o `produccion`. Cuando `ambiente` es **produccion**, el backend usa los endpoints SUNAT de producción definidos en `.env` con prefijo **PRO_** (PRO_FE_URL, PRO_RE_URL, PRO_GUIA_URL). Cuando es `pruebas`, se usan las URLs de prueba (FE_URL, RE_URL, GUIA_URL) o las que tenga configuradas la empresa.
 También puede usar [lycet-ui-config](https://giansalex.github.io/lycet-ui-config/) como interfaz de usuario, siendo mas útil
 esta opción cuando emplea contenedores.  
 
@@ -99,13 +112,14 @@ Ejemplo de contenido del archivo `empresas.json`, tambien puede cambiar la URL d
 > Para pruebas de Guia de remision, utilizar la siguiente configuración [issue#605](https://github.com/giansalex/lycet/issues/605)
 
 ### API Empresas (multitenant)
-Desde el frontend puedes **listar** y **crear/actualizar** empresas para trabajar con varias empresas.
+Desde el frontend puedes **listar** y **crear/actualizar** empresas; los datos se guardan en la **base de datos** (tabla `empresa`).
 
-- **GET** `/api/v1/empresas` — Lista todas las empresas en `data/empresas.json`.
+- **GET** `/api/v1/empresas` — Lista todas las empresas (incluye campo `ambiente`: `pruebas` o `produccion`).
 - **POST** `/api/v1/empresas` — Crea o actualiza una o varias empresas. El body puede ser:
-  - `{ "empresas": { "RUC": { "SOL_USER", "SOL_PASS", "certificate_base64?", "logo_base64?", "FE_URL?", ... } } }`
+  - `{ "empresas": { "RUC": { "SOL_USER", "SOL_PASS", "ambiente?", "certificate_base64?", "logo_base64?", "FE_URL?", ... } } }`
   - o directamente `{ "RUC": { ... }, "RUC2": { ... } }`.
 
+Puedes enviar **`ambiente`**: `pruebas` (por defecto) o `produccion`. Si es `produccion`, se usan las URLs PRO_* de `.env` para factura/boleta/guía.  
 Si envías `certificate_base64` o `logo_base64`, se guardan en `data/{RUC}-cert.pem` y `data/{RUC}-logo.png`. En las demás peticiones (factura, nota, etc.) envía el parámetro `?ruc=RUC` para usar esa empresa.
 
 ### Ejecutar    

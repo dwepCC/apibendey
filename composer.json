@@ -8,8 +8,11 @@
         "ext-ctype": "*",
         "ext-iconv": "*",
         "ext-json": "*",
-        "greenter/lite": "^5.0",
+        "doctrine/doctrine-bundle": "^2.13",
+        "doctrine/doctrine-migrations-bundle": "^3.7",
+        "doctrine/orm": "^2.20",
         "greenter/htmltopdf": "^5.0",
+        "greenter/lite": "^5.0",
         "greenter/report": "^5.0",
         "jms/serializer-bundle": "^5.0",
         "nelmio/cors-bundle": "^2.1",
@@ -63,7 +66,8 @@
         ],
         "post-update-cmd": [
             "@auto-scripts"
-        ]
+        ],
+        "test": "@php bin/phpunit"
     },
     "conflict": {
         "symfony/symfony": "*"

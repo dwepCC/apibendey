@@ -8,6 +8,8 @@
 
 namespace App\Service;
 
+use App\Repository\EmpresaRepository;
+
 /**
  * Class FileConfigProvider
  */
@@ -17,6 +19,11 @@ class FileConfigProvider implements ConfigProviderInterface
      * @var string
      */
     private $directory;
+
+    /**
+     * @var EmpresaRepository|null
+     */
+    private $empresaRepository;
 
     /**
      * @var array
@@ -30,10 +37,12 @@ class FileConfigProvider implements ConfigProviderInterface
     /**
      * FileConfigProvider constructor.
      * @param string $directory
+     * @param EmpresaRepository|null $empresaRepository Para leer empresas desde BD cuando key=companies
      */
-    public function __construct(string $directory)
+    public function __construct(string $directory, ?EmpresaRepository $empresaRepository = null)
     {
         $this->directory = $directory;
+        $this->empresaRepository = $empresaRepository;
     }
 
     /**
@@ -42,6 +51,11 @@ class FileConfigProvider implements ConfigProviderInterface
      */
     public function get($key)
     {
+        if ($key === 'companies' && $this->empresaRepository !== null) {
+            $array = $this->empresaRepository->getCompaniesArray();
+            return json_encode($array);
+        }
+
         if (!isset($this->keys[$key])) {
             return '';
         }
@@ -62,6 +76,10 @@ class FileConfigProvider implements ConfigProviderInterface
      */
     public function store($key, $value)
     {
+        if ($key === 'companies') {
+            return true;
+        }
+
         if (!isset($this->keys[$key])) {
             return false;
         }

@@ -2,49 +2,43 @@
 
 namespace App\Service;
 
+use App\Entity\Empresa;
+use App\Exception\EmpresaDatosInvalidosException;
+use App\Exception\EmpresaNoRegistradaException;
+use App\Repository\EmpresaRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * Servicio para gestionar múltiples empresas en data/empresas.json.
- * Permite listar, crear y actualizar empresas para uso multitenant.
+ * Servicio para gestionar múltiples empresas (persistencia en base de datos).
+ * Reglas: RUC siempre obligatorio. Al crear: SOL_USER y SOL_PASS obligatorios.
+ * Al actualizar: solo se modifican los campos enviados; si no se envían certificado/logo se mantienen los actuales.
  */
 class EmpresasService
 {
-    /**
-     * Claves que se aceptan en cada empresa (sin incluir certificate_base64/logo_base64).
-     */
     private const ALLOWED_KEYS = [
         'SOL_USER',
         'SOL_PASS',
         'certificate',
         'logo',
-        'FE_URL',
-        'RE_URL',
-        'GUIA_URL',
-        'AUTH_URL',
-        'API_URL',
-        'CLIENT_ID',
-        'CLIENT_SECRET',
+        'ambiente',
     ];
 
-    /**
-     * @var ConfigProviderInterface
-     */
-    private $fileProvider;
+    private const AMBIENTES_VALIDOS = ['pruebas', 'produccion'];
 
-    /**
-     * @var string
-     */
-    private $dataPath;
+    private EmpresaRepository $empresaRepository;
+    private EntityManagerInterface $em;
+    private string $dataPath;
+    private ?LoggerInterface $logger;
 
-    /**
-     * @var LoggerInterface|null
-     */
-    private $logger;
-
-    public function __construct(ConfigProviderInterface $fileProvider, string $dataPath, ?LoggerInterface $logger = null)
-    {
-        $this->fileProvider = $fileProvider;
+    public function __construct(
+        EmpresaRepository $empresaRepository,
+        EntityManagerInterface $em,
+        string $dataPath,
+        ?LoggerInterface $logger = null
+    ) {
+        $this->empresaRepository = $empresaRepository;
+        $this->em = $em;
         $this->dataPath = $dataPath;
         $this->logger = $logger;
     }
@@ -57,29 +51,15 @@ class EmpresasService
     }
 
     /**
-     * Obtiene todas las empresas del archivo empresas.json.
+     * Obtiene todas las empresas desde la base de datos.
      *
-     * @return array<string, array> RUC => configuración
+     * @return array<string, array> RUC => configuración (incluye clave ambiente)
      */
     public function getEmpresas(): array
     {
-        $json = $this->fileProvider->get('companies');
-        $path = $this->dataPath . DIRECTORY_SEPARATOR . 'empresas.json';
-        $this->log('info', 'getEmpresas: leyendo empresas.json', ['path' => $path, 'exists' => file_exists($path), 'content_length' => is_string($json) ? strlen($json) : 0]);
-        if ($json === '' || $json === null) {
-            return [];
-        }
-        $data = json_decode($json, true);
-        $result = is_array($data) ? $data : [];
-        $this->log('info', 'getEmpresas: empresas cargadas', ['count' => count($result)]);
-        return $result;
+        return $this->empresaRepository->getCompaniesArray();
     }
 
-    /**
-     * Guarda el contenido del certificado para un RUC en data/{ruc}-cert.pem.
-     *
-     * @return bool true si se guardó correctamente
-     */
     public function saveCertificate(string $ruc, string $content): bool
     {
         $ruc = trim($ruc);
@@ -93,18 +73,11 @@ class EmpresasService
         $this->log($ok ? 'info' : 'error', 'saveCertificate', [
             'ruc' => $ruc,
             'path' => $path,
-            'content_bytes' => strlen($content),
             'success' => $ok,
-            'data_dir_writable' => is_writable($this->dataPath),
         ]);
         return $ok;
     }
 
-    /**
-     * Guarda el contenido del logo para un RUC en data/{ruc}-logo.png.
-     *
-     * @return bool true si se guardó correctamente
-     */
     public function saveLogo(string $ruc, string $content): bool
     {
         $ruc = trim($ruc);
@@ -115,27 +88,17 @@ class EmpresasService
         $this->ensureDataDirectoryExists();
         $path = $this->dataPath . DIRECTORY_SEPARATOR . $ruc . '-logo.png';
         $ok = file_put_contents($path, $content) !== false;
-        $this->log($ok ? 'info' : 'error', 'saveLogo', [
-            'ruc' => $ruc,
-            'path' => $path,
-            'content_bytes' => strlen($content),
-            'success' => $ok,
-            'data_dir_writable' => is_writable($this->dataPath),
-        ]);
+        $this->log($ok ? 'info' : 'error', 'saveLogo', ['ruc' => $ruc, 'success' => $ok]);
         return $ok;
     }
 
     private function ensureDataDirectoryExists(): void
     {
         if (!is_dir($this->dataPath)) {
-            $this->log('info', 'ensureDataDirectoryExists: creando directorio data', ['path' => $this->dataPath]);
             mkdir($this->dataPath, 0755, true);
         }
     }
 
-    /**
-     * Extrae contenido base64 puro; si viene con prefijo data URL (data:...;base64,XXX) lo quita.
-     */
     public static function decodeBase64Content(string $value): ?string
     {
         $value = trim($value);
@@ -150,30 +113,33 @@ class EmpresasService
     }
 
     /**
-     * Agrega o actualiza empresas. Si se envían certificate_base64 o logo_base64,
-     * se guardan en data/{ruc}-cert.pem y data/{ruc}-logo.png.
+     * Agrega o actualiza empresas en la base de datos.
+     * - RUC siempre obligatorio.
+     * - Al crear: SOL_USER y SOL_PASS obligatorios. Certificado y logo opcionales.
+     * - Al actualizar: solo se modifican los campos enviados; si no se envían certificado/logo se mantienen los actuales.
      *
-     * @param array<string, array> $empresas RUC => [ SOL_USER, SOL_PASS, certificate_base64?, logo_base64?, ... ]
+     * @param array<string, array> $empresas RUC => [ SOL_USER?, SOL_PASS?, ambiente?, certificate_base64?, logo_base64?, ... ]
+     * @throws EmpresaDatosInvalidosException Si al crear falta SOL_USER o SOL_PASS, o RUC vacío
      */
     public function addOrUpdateEmpresas(array $empresas): void
     {
-        $keysReceived = array_keys($empresas);
         $empresas = array_filter($empresas, function ($v, $k) {
             return (is_string($k) || is_int($k)) && trim((string) $k) !== '' && is_array($v);
         }, ARRAY_FILTER_USE_BOTH);
         if (empty($empresas)) {
-            $this->log('warning', 'addOrUpdateEmpresas: lista de empresas vacía o inválida, no se escribe empresas.json', ['keys_received' => $keysReceived]);
+            $this->log('warning', 'addOrUpdateEmpresas: lista vacía o inválida');
             return;
         }
 
         $current = $this->getEmpresas();
-        $this->log('info', 'addOrUpdateEmpresas: inicio', ['rucs_to_update' => array_keys($empresas), 'current_empresas_count' => count($current)]);
 
         foreach ($empresas as $ruc => $config) {
             $ruc = trim((string) $ruc);
             if ($ruc === '' || !is_array($config)) {
                 continue;
             }
+
+            $isUpdate = isset($current[$ruc]);
 
             $certBase64 = $config['certificate_base64'] ?? $config['certificateBase64'] ?? null;
             $logoBase64 = $config['logo_base64'] ?? $config['logoBase64'] ?? null;
@@ -199,30 +165,114 @@ class EmpresasService
                 }
             }
 
-            $entry = [];
-            foreach (self::ALLOWED_KEYS as $key) {
-                if (array_key_exists($key, $config) && $config[$key] !== '' && $config[$key] !== null) {
-                    $entry[$key] = $config[$key];
+            if ($isUpdate) {
+                $entry = array_merge($current[$ruc], []);
+                foreach (self::ALLOWED_KEYS as $key) {
+                    if (array_key_exists($key, $config) && $config[$key] !== '' && $config[$key] !== null) {
+                        $entry[$key] = $config[$key];
+                    }
                 }
-            }
-            if (!isset($entry['certificate']) && isset($current[$ruc]['certificate'])) {
-                $entry['certificate'] = $current[$ruc]['certificate'];
-            }
-            if (!isset($entry['logo']) && isset($current[$ruc]['logo'])) {
-                $entry['logo'] = $current[$ruc]['logo'];
+                if (!isset($entry['certificate'])) {
+                    $entry['certificate'] = $current[$ruc]['certificate'] ?? null;
+                }
+                if (!isset($entry['logo'])) {
+                    $entry['logo'] = $current[$ruc]['logo'] ?? null;
+                }
+            } else {
+                $solUser = trim((string) ($config['SOL_USER'] ?? ''));
+                $solPass = trim((string) ($config['SOL_PASS'] ?? ''));
+                if ($solUser === '' || $solPass === '') {
+                    throw new EmpresaDatosInvalidosException($ruc, 'Al registrar una nueva empresa son obligatorios SOL_USER y SOL_PASS (Clave SOL).');
+                }
+                $entry = [
+                    'SOL_USER' => $solUser,
+                    'SOL_PASS' => $solPass,
+                    'certificate' => $config['certificate'] ?? null,
+                    'logo' => $config['logo'] ?? null,
+                    'ambiente' => $this->normalizeAmbiente($config['ambiente'] ?? 'pruebas'),
+                ];
             }
 
-            $current[$ruc] = array_merge($current[$ruc] ?? [], $entry);
+            if (!isset($entry['ambiente']) || $entry['ambiente'] === '') {
+                $entry['ambiente'] = 'pruebas';
+            }
+            $entry['ambiente'] = $this->normalizeAmbiente($entry['ambiente']);
+
+            $entity = $this->empresaRepository->findByRuc($ruc);
+            if ($entity === null) {
+                $entity = new Empresa();
+                $entity->setRuc($ruc);
+            }
+
+            $entity->setSolUser((string) ($entry['SOL_USER'] ?? ''));
+            $entity->setSolPass((string) ($entry['SOL_PASS'] ?? ''));
+            $entity->setCertificate($entry['certificate'] ?? null);
+            $entity->setLogo($entry['logo'] ?? null);
+            $entity->setAmbiente((string) $entry['ambiente']);
+
+            $this->em->persist($entity);
         }
 
-        $jsonContent = json_encode($current, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        $empresasJsonPath = $this->dataPath . DIRECTORY_SEPARATOR . 'empresas.json';
-        $this->fileProvider->store('companies', $jsonContent);
-        $this->log('info', 'addOrUpdateEmpresas: empresas.json escrito', [
-            'path' => $empresasJsonPath,
-            'bytes_written' => strlen($jsonContent),
-            'empresas_count' => count($current),
-            'file_exists_after' => file_exists($empresasJsonPath),
-        ]);
+        $this->em->flush();
+        $this->log('info', 'addOrUpdateEmpresas: empresas guardadas en BD', ['count' => count($empresas)]);
+    }
+
+    /**
+     * Cambia solo el ambiente de la empresa (producción ↔ pruebas).
+     * Al pasar a "produccion" se valida que la empresa tenga usuario SOL, contraseña SOL y certificado configurados (y que el archivo del certificado exista).
+     *
+     * @throws EmpresaNoRegistradaException Si el RUC no está en la BD
+     * @throws EmpresaDatosInvalidosException Si el ambiente no es válido o faltan datos para producción
+     */
+    public function updateAmbiente(string $ruc, string $ambiente): void
+    {
+        $ruc = trim($ruc);
+        if ($ruc === '') {
+            throw new EmpresaDatosInvalidosException('', 'RUC es obligatorio.');
+        }
+        $entity = $this->empresaRepository->findByRuc($ruc);
+        if ($entity === null) {
+            throw new EmpresaNoRegistradaException($ruc);
+        }
+        $ambiente = $this->normalizeAmbiente($ambiente);
+
+        if ($ambiente === 'produccion') {
+            $faltan = [];
+            if (trim($entity->getSolUser()) === '') {
+                $faltan[] = 'usuario SOL (SOL_USER)';
+            }
+            if (trim($entity->getSolPass()) === '') {
+                $faltan[] = 'contraseña SOL (SOL_PASS)';
+            }
+            $certFile = $entity->getCertificate();
+            if ($certFile === null || trim($certFile) === '') {
+                $faltan[] = 'certificado digital';
+            } else {
+                $certPath = $this->dataPath . DIRECTORY_SEPARATOR . $certFile;
+                if (!is_file($certPath)) {
+                    $faltan[] = 'archivo del certificado (' . $certFile . ')';
+                }
+            }
+            if ($faltan !== []) {
+                throw new EmpresaDatosInvalidosException(
+                    $ruc,
+                    'Para pasar a producción la empresa debe tener usuario SOL, contraseña SOL y certificado digital configurados. Faltan: ' . implode(', ', $faltan) . '.'
+                );
+            }
+        }
+
+        $entity->setAmbiente($ambiente);
+        $this->em->flush();
+        $this->log('info', 'updateAmbiente', ['ruc' => $ruc, 'ambiente' => $ambiente]);
+    }
+
+    private function normalizeAmbiente(string $ambiente): string
+    {
+        $a = strtolower(trim($ambiente));
+        if (!in_array($a, self::AMBIENTES_VALIDOS, true)) {
+            return 'pruebas';
+        }
+        return $a;
     }
 }
+

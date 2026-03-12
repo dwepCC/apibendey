@@ -8,6 +8,7 @@
 
 namespace App\Controller\v1;
 
+use App\Exception\EmpresaNoRegistradaException;
 use App\Service\DocumentRequestInterface;
 use App\Service\SeeApiFactory;
 use Greenter\Model\Despatch\Despatch;
@@ -47,7 +48,12 @@ class DespatchController extends AbstractController
     {
         /** @var \Greenter\Model\Despatch\Despatch $document */
         $document = $this->document->getDocument(Despatch::class);
-        $see = $factory->build(trim((string) $document->getCompany()->getRuc()));
+        $ruc = trim((string) $document->getCompany()->getRuc());
+        try {
+            $see = $factory->build($ruc);
+        } catch (EmpresaNoRegistradaException $e) {
+            return new JsonResponse(['message' => $e->getMessage(), 'ruc' => $e->getRuc()], 400);
+        }
         $result = $see->send($document);
 
         $xml = $see->getLastXml();
@@ -95,7 +101,15 @@ class DespatchController extends AbstractController
         if (empty($ticket)) {
             return new JsonResponse(['message' => 'Ticket Requerido'], 400);
         }
-        $see = $factory->build($request->query->get('ruc'));
+        $ruc = $request->query->get('ruc');
+        if (empty($ruc)) {
+            return new JsonResponse(['message' => 'RUC requerido (modo multiempresa).'], 400);
+        }
+        try {
+            $see = $factory->build($ruc);
+        } catch (EmpresaNoRegistradaException $e) {
+            return new JsonResponse(['message' => $e->getMessage(), 'ruc' => $e->getRuc()], 400);
+        }
         $result = $see->getStatus($ticket);
 
         if ($result->isSuccess()) {

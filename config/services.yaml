@@ -108,7 +108,9 @@ services:
             - [setBuilderOptions, [cache: '%kernel.cache_dir%']]
 
     App\Service\FileConfigProvider:
-        arguments: ['%data_path%']
+        arguments:
+            - '%data_path%'
+            - '@App\Repository\EmpresaRepository'
 
     App\Service\FileDataReader:
         public: true
@@ -116,7 +118,8 @@ services:
 
     App\Service\EmpresasService:
         arguments:
-            - '@App\Service\ConfigProviderInterface'
+            - '@App\Repository\EmpresaRepository'
+            - '@Doctrine\ORM\EntityManagerInterface'
             - '%data_path%'
 
     App\Service\ConfigProviderInterface:
@@ -144,6 +147,10 @@ services:
     App\EventSubscriber\TokenSubscriber:
         arguments:
             $token: '%token%'
+
+    App\Command\ImportEmpresasFromJsonCommand:
+        arguments:
+            $dataPath: '%data_path%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

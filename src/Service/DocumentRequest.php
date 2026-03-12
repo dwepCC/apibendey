@@ -8,6 +8,7 @@
 
 namespace App\Service;
 
+use App\Exception\EmpresaNoRegistradaException;
 use Greenter\Model\DocumentInterface;
 use Greenter\Model\Response\BaseResult;
 use Greenter\Model\Response\BillResult;
@@ -64,7 +65,14 @@ class DocumentRequest implements DocumentRequestInterface
         }
         $company = $document->getCompany();
 
-        $see = $this->getSee($class, trim((string) $company->getRuc()));
+        try {
+            $see = $this->getSee($class, trim((string) $company->getRuc()));
+        } catch (EmpresaNoRegistradaException $e) {
+            return new JsonResponse([
+                'error' => $e->getMessage(),
+                'ruc' => $e->getRuc(),
+            ], Response::HTTP_BAD_REQUEST);
+        }
         $result = $see->send($document);
 
         $this->toBase64Zip($result);
@@ -93,7 +101,14 @@ class DocumentRequest implements DocumentRequestInterface
             return $error;
         }
         $company = $document->getCompany();
-        $see = $this->getSee($class, trim((string) $company->getRuc()));
+        try {
+            $see = $this->getSee($class, trim((string) $company->getRuc()));
+        } catch (EmpresaNoRegistradaException $e) {
+            return new JsonResponse([
+                'error' => $e->getMessage(),
+                'ruc' => $e->getRuc(),
+            ], Response::HTTP_BAD_REQUEST);
+        }
 
         $xml  = $see->getXmlSigned($document);
 
@@ -125,7 +140,14 @@ class DocumentRequest implements DocumentRequestInterface
             $logo = $this->getParameter('logo');
         }
 
-        $see = $this->getSee($class, $ruc);
+        try {
+            $see = $this->getSee($class, $ruc);
+        } catch (EmpresaNoRegistradaException $e) {
+            return new JsonResponse([
+                'error' => $e->getMessage(),
+                'ruc' => $e->getRuc(),
+            ], Response::HTTP_BAD_REQUEST);
+        }
 
         $parameters = [
             'system' => [
