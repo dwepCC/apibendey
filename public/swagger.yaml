@@ -1314,6 +1314,10 @@ components:
         mtoIGV:
           type: number
           format: float
+        porcentajeIgv:
+          type: number
+          format: float
+          description: Porcentaje de IGV (cbc:Percent). Requerido por SUNAT cuando hay mtoIGV (error 2992).
         mtoIvap:
           type: number
           format: float

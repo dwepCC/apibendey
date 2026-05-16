@@ -152,5 +152,5 @@ services:
         arguments:
             $dataPath: '%data_path%'
 
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
+    # add more service definitions here when explicit configuration is needed
+    # please note that last definitions always *replace* previous definitions

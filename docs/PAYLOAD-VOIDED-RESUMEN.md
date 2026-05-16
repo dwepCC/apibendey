@@ -168,7 +168,7 @@ Sirve para enviar a SUNAT el **resumen diario** de comprobantes (boletas, notas,
 | **moneda** | string | Moneda (ej. `"PEN"`). |
 | **details** | array | Lista de resúmenes por comprobante. Cada elemento: tipoDoc, serieNro, cliente, totales, etc. (SummaryDetail). |
 
-Cada **SummaryDetail** incluye, entre otros: **tipoDoc**, **serieNro** (serie-número), **clienteTipo**, **clienteNro**, **total**, **mtoOperGravadas**, **mtoIGV**, y demás totales según el tipo de comprobante. La estructura completa está en el esquema **Summary** del `swagger.yaml` (properties de Summary y SummaryDetail).
+Cada **SummaryDetail** incluye, entre otros: **tipoDoc**, **serieNro** (serie-número), **clienteTipo**, **clienteNro**, **total**, **mtoOperGravadas**, **mtoIGV**, **porcentajeIgv** (Greenter 5.2+, obligatorio en la práctica cuando hay IGV para evitar error SUNAT 2992), y demás totales según el tipo de comprobante. La estructura completa está en el esquema **Summary** del `swagger.yaml` (properties de Summary y SummaryDetail).
 
 ### Ejemplo mínimo de payload (resumen)
 
@@ -200,7 +200,8 @@ Cada **SummaryDetail** incluye, entre otros: **tipoDoc**, **serieNro** (serie-n�
       "clienteNro": "12345678",
       "total": 118.00,
       "mtoOperGravadas": 100.00,
-      "mtoIGV": 18.00
+      "mtoIGV": 18.00,
+      "porcentajeIgv": 18
     }
   ]
 }

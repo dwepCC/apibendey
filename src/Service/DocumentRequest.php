@@ -52,7 +52,7 @@ class DocumentRequest implements DocumentRequestInterface
     }
 
     /**
-     * Get Result. 
+     * Get Result.
      * @param string $class
      * @return Response
      */
@@ -81,7 +81,7 @@ class DocumentRequest implements DocumentRequestInterface
         $data = [
             'xml' => $xml,
             'hash' => $this->GetHashFromXml($xml),
-            'sunatResponse' => $result
+            'sunatResponse' => $result,
         ];
 
         return $this->json($data);
@@ -110,14 +110,14 @@ class DocumentRequest implements DocumentRequestInterface
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $xml  = $see->getXmlSigned($document);
+        $xml = $see->getXmlSigned($document);
 
-        return $this->file($xml, $document->getName().'.xml', 'text/xml');
+        return $this->file($xml, $document->getName() . '.xml', 'text/xml');
     }
 
     /**
      * Get Pdf.
-     * 
+     *
      * @param string $class
      * @return Response
      */
@@ -128,7 +128,7 @@ class DocumentRequest implements DocumentRequestInterface
         if ($error !== null) {
             return $error;
         }
-        $params = $this->getKeyContent("parameters");
+        $params = $this->getKeyContent('parameters');
 
         $company = $document->getCompany();
         $jsonCompanies = $this->getParameter('companies');
@@ -152,12 +152,12 @@ class DocumentRequest implements DocumentRequestInterface
         $parameters = [
             'system' => [
                 'logo' => $params['system']['logo'] ?? $logo,
-                'hash' => $this->getHashFromXml($see->getXmlSigned($document)),
+                'hash' => $this->GetHashFromXml($see->getXmlSigned($document)),
             ],
             'user' => [
                 'header' => '',
                 'extras' => $params['user']['extras'] ?? [],
-            ]
+            ],
         ];
 
         $report = $this->getReport();
@@ -211,6 +211,7 @@ class DocumentRequest implements DocumentRequestInterface
         if (empty($missing)) {
             return null;
         }
+
         return new JsonResponse([
             'error' => 'Faltan datos obligatorios para el comprobante.',
             'campos_requeridos' => $missing,
@@ -219,7 +220,7 @@ class DocumentRequest implements DocumentRequestInterface
     }
 
     /**
-     * @return array
+     * @return array|null
      */
     private function getKeyContent(string $key): ?array
     {
@@ -244,13 +245,11 @@ class DocumentRequest implements DocumentRequestInterface
     {
         $response = new Response($content);
 
-        // Create the disposition of the file
         $disposition = $response->headers->makeDisposition(
             ResponseHeaderBag::DISPOSITION_ATTACHMENT,
             $fileName
         );
 
-        // Set the content disposition
         $response->headers->set('Content-Disposition', $disposition);
         $response->headers->set('Content-Type', $contentType);
 
@@ -279,12 +278,12 @@ class DocumentRequest implements DocumentRequestInterface
     }
 
     /**
-     * @param $result
+     * @param mixed $result
      */
     private function toBase64Zip(BaseResult $result): void
     {
         if ($result->isSuccess() && !($result instanceof SummaryResult)) {
-            /**@var $result BillResult */
+            /** @var BillResult $result */
             $zip = $result->getCdrZip();
             if ($zip) {
                 $result->setCdrZip(base64_encode($zip));

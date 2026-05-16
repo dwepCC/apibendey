@@ -33,10 +33,11 @@ class SeeFactory
 
     /**
      * SeeFactory constructor.
+     *
      * @param ConfigProviderInterface $config
      * @param ConfigProviderInterface $fileProvider
-     * @param FileDataReader $fileReader
-     * @param See $see
+     * @param FileDataReader          $fileReader
+     * @param See                     $see
      */
     public function __construct(ConfigProviderInterface $config, ConfigProviderInterface $fileProvider, FileDataReader $fileReader, See $see)
     {
@@ -50,9 +51,9 @@ class SeeFactory
      * Construye See con credenciales y certificado de la empresa en BD (multiempresa).
      * No usa .env como respaldo: si el RUC no está registrado, lanza EmpresaNoRegistradaException.
      *
-     * @param string $class Clase del documento (Invoice, Despatch, etc.)
-     * @param string|null $ruc RUC de la empresa (obligatorio en modo multiempresa)
-     * @return See
+     * @param string      $class Clase del documento (Invoice, Despatch, etc.)
+     * @param string|null $ruc   RUC de la empresa (obligatorio en modo multiempresa)
+     *
      * @throws EmpresaNoRegistradaException Si el RUC está vacío o no existe en la BD
      */
     public function build(string $class, ?string $ruc): See
@@ -111,6 +112,10 @@ class SeeFactory
      * Devuelve la URL del servicio SUNAT según el tipo de comprobante y el ambiente de la empresa.
      * - Ambiente "produccion" → usa PRO_FE_URL, PRO_RE_URL, PRO_GUIA_URL del .env
      * - Ambiente "pruebas" (o por defecto) → usa FE_URL, RE_URL, GUIA_URL del .env
+     *
+     * @param array<string, mixed> $config
+     *
+     * @return string|null
      */
     private function getUrlService($className, $config = [])
     {
